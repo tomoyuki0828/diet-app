@@ -101,14 +101,23 @@ with tab1:
 
     st.info(f"{advice_status}\n\n{proposal}")
 
-    if api_key and st.button("✨ ジェミから今日のワンポイント助言をもらう"):
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        prompt = f"明日からトレーニング開始予定（目標80kg→70kg）です。専属トレーナーとして、初日に向けたやる気が湧くアドバイスを100文字程度で提供してください。"
-        try:
-            response = model.generate_content(prompt)
-            st.success(f"💡 **ジェミの一言:**\n\n{response.text}")
-        except Exception:
-            st.warning("AIメッセージの取得に失敗しました。")
+    if st.button("✨ ジェミから今日のワンポイント助言をもらう"):
+        if not api_key:
+            st.error("APIキーが設定されていません。StreamlitのSecrets設定をご確認ください。")
+        else:
+            prompt = f"明日からトレーニング開始予定（目標80kg→70kg）です。専属トレーナーとして、初日に向けたやる気が湧くアドバイスを100文字程度で提供してください。"
+            try:
+                # 複数モデルに対応したフォールバック処理
+                try:
+                    model = genai.GenerativeModel("gemini-1.5-flash")
+                    response = model.generate_content(prompt)
+                except Exception:
+                    model = genai.GenerativeModel("gemini-2.5-flash")
+                    response = model.generate_content(prompt)
+                    
+                st.success(f"💡 **ジェミの一言:**\n\n{response.text}")
+            except Exception as e:
+                st.warning(f"AIメッセージの取得に失敗しました。詳細: {e}")
 
 # ==========================================
 # TAB 2: 今日のパーソナルメニュー（完全マシン限定）
@@ -219,8 +228,11 @@ with tab3:
     user_query = st.text_area("質問・相談を入力", placeholder="例：初日に持っていくと良いものや準備しておくべきことは？")
     
     if st.button("ジェミに相談する 💬", use_container_width=True):
-        if user_query and api_key:
-            model = genai.GenerativeModel("gemini-1.5-flash")
+        if not user_query:
+            st.warning("相談内容を入力してください。")
+        elif not api_key:
+            st.error("APIキーが設定されていません。StreamlitのSecrets設定をご確認ください。")
+        else:
             system_prompt = (
                 "あなたは熱心で知識豊富なプロのパーソナルトレーナー『ジェミ』です。"
                 "ユーザーは80kgから70kgを目指してダイエット中です。"
@@ -231,10 +243,14 @@ with tab3:
             
             with st.spinner("ジェミがアドバイスを考え中..."):
                 try:
-                    response = model.generate_content(full_prompt)
+                    try:
+                        model = genai.GenerativeModel("gemini-1.5-flash")
+                        response = model.generate_content(full_prompt)
+                    except Exception:
+                        model = genai.GenerativeModel("gemini-2.5-flash")
+                        response = model.generate_content(full_prompt)
+                        
                     st.success("💪 ジェミからの回答:")
                     st.write(response.text)
                 except Exception as e:
-                    st.error("エラーが発生しました。時間を置いて再度お試しください。")
-        elif not user_query:
-            st.warning("相談内容を入力してください。")
+                    st.error(f"エラーが発生しました。詳細: {e}")
