@@ -6,23 +6,37 @@ import datetime
 # --- ページ設定 ---
 st.set_page_config(page_title="健康ダイエット App", page_icon="🏋️‍♂️", layout="centered")
 
-# --- CSS設定（スマホでも確実にタブを上部固定） ---
+# --- CSS設定（画面最上部に完全固定 & コンテンツの重なり防止） ---
 st.markdown("""
     <style>
-    /* モバイル・Web共通：タブ全体のリスト部分を画面上部に固定 */
-    div[data-testid="stTabs"] > div:first-child {
-        position: sticky;
-        top: 0;
-        background-color: #ffffff;
-        z-index: 9999;
-        padding-top: 8px;
-        padding-bottom: 8px;
-        border-bottom: 2px solid #f0f2f6;
+    /* Streamlit標準の最上部ヘッダー背景を白にして固定 */
+    header[data-testid="stHeader"] {
+        background-color: #ffffff !important;
+        z-index: 99990 !important;
     }
-    
-    /* タブ切り替え時のスクロール位置ズレを防止 */
+
+    /* タブバーを画面上部に強制固定 (fixed) */
+    div[data-testid="stTabs"] > div:first-child {
+        position: fixed !important;
+        top: 3.5rem !important; /* Streamlitヘッダーのすぐ下に配置 */
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        background-color: #ffffff !important;
+        z-index: 99999 !important;
+        padding: 6px 16px !important;
+        border-bottom: 2px solid #e2e8f0 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+    }
+
+    /* タブが固定された分、メインコンテンツの上が隠れないように余白を開ける */
     .stMainBlockContainer {
-        padding-top: 1rem !important;
+        padding-top: 5rem !important;
+    }
+
+    /* タブコンテナ自体の余白調整 */
+    div[data-testid="stTabs"] {
+        margin-top: 1rem;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -46,7 +60,7 @@ if "weight_history" not in st.session_state:
     st.session_state.weight_history = {tomorrow: 80.0}
 
 # --- タブ作成 ---
-tab1, tab2, tab3 = st.tabs(["⚖️ 体重トラッカー", "💪 今日のパーソナルメニュー", "🤖 ジェミ相談室"])
+tab1, tab2, tab3 = st.tabs(["⚖️ 体重トラッカー", "💪 今日のメニュー", "🤖 ジェミ相談室"])
 
 # 今日の日付と経過日数
 today_date = datetime.date.today()
