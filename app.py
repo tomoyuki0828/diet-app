@@ -97,13 +97,18 @@ if page == "⚖️ 体重トラッカー":
   st.subheader("📈 体重推移 ＆ 7日間平均チェック")
 
   if not df_records.empty:
-    # 1. 標準グラフで確実・高速に表示
+    # データ整形
     chart_df = df_records.copy()
-    chart_df["日付"] = pd.to_datetime(chart_df["日付"])
-    chart_df = chart_df.set_index("日付")
+    chart_df["日付文字列"] = chart_df["日付"].astype(str)
 
-    # 縦軸を自動調整しやすくした散布図兼折れ線表示
-    st.line_chart(chart_df["体重"])
+    # データが1日の時と複数日の時で表示を切り替え
+    if len(chart_df) == 1:
+      # 1日目のときは散布図で「大きな点」を画面中央に表示
+      st.scatter_chart(chart_df, x="日付文字列", y="体重", color="#FF4B4B")
+    else:
+      # 2日目以降は折れ線グラフで遷移を表示
+      chart_df_indexed = chart_df.set_index("日付文字列")
+      st.line_chart(chart_df_indexed["体重"], color="#FF4B4B")
 
     # 2. 7日間平均の算出
     recent_7 = df_records.tail(7)["体重"]
