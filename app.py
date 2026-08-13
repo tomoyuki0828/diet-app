@@ -6,6 +6,22 @@ import datetime
 # --- ページ設定 ---
 st.set_page_config(page_title="健康ダイエット App", page_icon="🏋️‍♂️", layout="centered")
 
+# --- CSS設定（タブを上部に固定） ---
+st.markdown("""
+    <style>
+    /* Streamlitのタブヘッダーを上部に固定 */
+    div[data-baseweb="tab-list"] {
+        position: sticky;
+        top: 0;
+        background-color: var(--background-color, #ffffff);
+        z-index: 999;
+        padding-top: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- APIキーの設定 ---
 api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
 if api_key:
@@ -107,7 +123,6 @@ with tab1:
         else:
             prompt = f"明日からトレーニング開始予定（目標80kg→70kg）です。専属トレーナーとして、初日に向けたやる気が湧くアドバイスを100文字程度で提供してください。"
             
-            # 利用可能なモデル順にフォールバック実行
             models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
             success = False
             
@@ -122,7 +137,6 @@ with tab1:
                     continue
             
             if not success:
-                # API接続が不安定な場合のローカルメッセージ
                 st.success("💡 **ジェミの一言:**\n\n明日はいよいよ初日ですね！焦らずマシンの設定確認からスタートしましょう。水分補給と十分な睡眠をとって明日に備えてくださいね！🔥")
 
 # ==========================================
