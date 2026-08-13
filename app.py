@@ -11,14 +11,14 @@ api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
 
-# --- 明日スタートの設定 ---
-tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+# --- 今日の日付 ---
+today_date = datetime.date.today()
 
-# --- セッション状態の初期化 ---
+# --- セッション状態の初期化（デフォルトを今日に設定） ---
 if "start_date" not in st.session_state:
-    st.session_state.start_date = tomorrow
+    st.session_state.start_date = today_date
 if "weight_history" not in st.session_state:
-    st.session_state.weight_history = {tomorrow: 80.0}
+    st.session_state.weight_history = {today_date: 80.0}
 
 # ==========================================
 # サイドバー（固定ナビゲーション）
@@ -32,8 +32,7 @@ with st.sidebar:
     st.markdown("---")
     st.caption("目標: 80kg → 70kg\n完全パーソナル管理")
 
-# 今日の日付と経過日数
-today_date = datetime.date.today()
+# 経過日数の計算（今日スタートなら1日目）
 days_passed = (today_date - st.session_state.start_date).days + 1
 
 # 最新の体重変化を取得
@@ -59,10 +58,10 @@ if page == "⚖️ 体重トラッカー":
             st.session_state.start_date = input_start
             st.rerun()
 
-    if days_passed <= 0:
-        st.info(f"🚩 **トレーニング開始予定日:** `{st.session_state.start_date}`（いよいよ明日スタート！）")
+    if days_passed < 1:
+        st.info(f"🚩 **トレーニング開始予定日:** `{st.session_state.start_date}`（開始前）")
     else:
-        st.write(f"⏱️ **トレーニング開始から:** `{days_passed} 日目`")
+        st.success(f"⏱️ **トレーニング開始から:** `{days_passed} 日目` 🔥")
     
     weight = st.number_input("体重 (kg)", min_value=30.0, max_value=200.0, value=float(latest_weight), step=0.1)
     
@@ -74,16 +73,14 @@ if page == "⚖️ 体重トラッカー":
     st.markdown("---")
     st.subheader("🤖 ジェミ・トレーナーからの定期診断＆提案")
 
-    if days_passed <= 0:
-        advice_status = "🔥 **【明日からスタート！】**"
-        proposal = (
-            "いよいよ明日から『目標70kg』へ向けたトレーニングがスタートします！\n\n"
-            "初日は焦らず、マシンのシートの高さや使い方の確認から始めていきましょう。明日の朝、体重を記録して準備完了です！"
-        )
+    # 日数判定の修正ロジック
+    if days_passed < 1:
+        advice_status = "🚩 **【準備期間】**"
+        proposal = "トレーニング開始日に向けて準備を進めましょう！"
     elif days_passed < 7:
-        advice_status = "🌱 **【準備・慣れ期間】**"
+        advice_status = "🚀 **【記念すべき第1章スタート！慣れ・実践期間】**"
         proposal = (
-            f"現在 {days_passed} 日目（変化: {weight_diff}kg）です！\n\n"
+            f"現在 {days_passed} 日目（変化: {weight_diff}kg）です！最高の一歩を踏み出しましたね！\n\n"
             "まずはマシンの使い方とフォームに慣れることが最優先。重さは『少し軽め』で10〜12回丁寧に動かすことを意識しましょう！"
         )
     elif 7 <= days_passed < 30:
@@ -113,7 +110,7 @@ if page == "⚖️ 体重トラッカー":
         if not api_key:
             st.error("APIキーが設定されていません。StreamlitのSecrets設定をご確認ください。")
         else:
-            prompt = f"明日からトレーニング開始予定（目標80kg→70kg）です。専属トレーナーとして、初日に向けたやる気が湧くアドバイスを100文字程度で提供してください。"
+            prompt = f"今日からトレーニング開始（目標80kg→70kg、本日{weight}kg）です。専属トレーナーとして、やる気が湧く初日のアドバイスを100文字程度で提供してください。"
             
             models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
             success = False
@@ -129,7 +126,7 @@ if page == "⚖️ 体重トラッカー":
                     continue
             
             if not success:
-                st.success("💡 **ジェミの一言:**\n\n明日はいよいよ初日ですね！焦らずマシンの設定確認からスタートしましょう。水分補給と十分な睡眠をとって明日に備えてくださいね！🔥")
+                st.success("💡 **ジェミの一言:**\n\nいよいよ初日ですね！まずは無理せずマシンの設定とフォームの確認から楽しんでいきましょう！応援しています！🔥")
 
 # ==========================================
 # ページ 2: 今日のパーソナルメニュー（完全マシン限定）
