@@ -44,8 +44,14 @@ with st.sidebar:
   st.title("🏋️‍♂️ メニュー")
   page = st.radio(
       "ページを選択してください",
-      ["⚖️ 体重トラッカー", "💪 今日のメニュー", "🤖 ジェミ相談室"],
+      ["秤 体重トラッカー", "💪 今日のメニュー", "🤖 ジェミ相談室"],
   )
+
+  st.markdown("---")
+  # 🔄 アプリ更新ボタン
+  if st.button("🔄 アプリを更新（再読み込み）", use_container_width=True):
+    st.rerun()
+
   st.markdown("---")
   st.caption("目標: 80kg → 70kg\n完全パーソナル管理")
 
@@ -55,8 +61,15 @@ days_passed = (today_date - st.session_state.start_date).days + 1
 # ==========================================
 # ページ 1: 体重トラッカー ＆ 7日間平均判定
 # ==========================================
-if page == "⚖️ 体重トラッカー":
-  st.title("⚖️ 体重トラッカー")
+if page == "秤 体重トラッカー":
+  # 画面右上にも再読み込みボタンを配置
+  top_col1, top_col2 = st.columns([3, 1])
+  with top_col1:
+    st.title("⚖️ 体重トラッカー")
+  with top_col2:
+    if st.button("🔄 再読み込み", key="reload_top"):
+      st.rerun()
+
   st.caption("毎日の体重を記録して、7日間平均で確実に成果をチェック！")
   st.markdown("---")
 
@@ -103,10 +116,8 @@ if page == "⚖️ 体重トラッカー":
 
     # データが1日の時と複数日の時で表示を切り替え
     if len(chart_df) == 1:
-      # 1日目のときは散布図で「大きな点」を画面中央に表示
       st.scatter_chart(chart_df, x="日付文字列", y="体重", color="#FF4B4B")
     else:
-      # 2日目以降は折れ線グラフで遷移を表示
       chart_df_indexed = chart_df.set_index("日付文字列")
       st.line_chart(chart_df_indexed["体重"], color="#FF4B4B")
 
