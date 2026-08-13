@@ -3,7 +3,6 @@ import os
 import zoneinfo
 import google.generativeai as genai
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
 # --- ページ設定 ---
@@ -98,35 +97,13 @@ if page == "⚖️ 体重トラッカー":
   st.subheader("📈 体重推移 ＆ 7日間平均チェック")
 
   if not df_records.empty:
-    # 1. Plotlyを使った分かりやすいグラフの表示（点と線を強調）
+    # 1. 標準グラフで確実・高速に表示
     chart_df = df_records.copy()
-    chart_df["日付表示"] = chart_df["日付"].astype(str)
+    chart_df["日付"] = pd.to_datetime(chart_df["日付"])
+    chart_df = chart_df.set_index("日付")
 
-    fig = px.line(
-        chart_df,
-        x="日付表示",
-        y="体重",
-        markers=True,  # くっきりした点を表示！
-        title="体重の推移",
-        labels={"日付表示": "日付", "体重": "体重 (kg)"},
-    )
-
-    # グラフの見た目を調整（点と線を大きく、目盛りを最適化）
-    fig.update_traces(
-        marker=dict(size=10, color="#FF4B4B"),
-        line=dict(width=3, color="#FF4B4B"),
-    )
-    fig.update_layout(
-        yaxis_range=[
-            min(chart_df["体重"]) - 2,
-            max(chart_df["体重"]) + 2,
-        ],  # 体重に合った縦軸に自動調整
-        xaxis_title="日付",
-        yaxis_title="体重 (kg)",
-        hovermode="x unified",
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
+    # 縦軸を自動調整しやすくした散布図兼折れ線表示
+    st.line_chart(chart_df["体重"])
 
     # 2. 7日間平均の算出
     recent_7 = df_records.tail(7)["体重"]
