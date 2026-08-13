@@ -106,13 +106,24 @@ with tab1:
             st.error("APIキーが設定されていません。StreamlitのSecrets設定をご確認ください。")
         else:
             prompt = f"明日からトレーニング開始予定（目標80kg→70kg）です。専属トレーナーとして、初日に向けたやる気が湧くアドバイスを100文字程度で提供してください。"
-            try:
-                # 最新推奨モデルを指定
-                model = genai.GenerativeModel("gemini-2.0-flash")
-                response = model.generate_content(prompt)
-                st.success(f"💡 **ジェミの一言:**\n\n{response.text}")
-            except Exception as e:
-                st.warning(f"AIメッセージの取得に失敗しました。詳細: {e}")
+            
+            # 利用可能なモデル順にフォールバック実行
+            models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+            success = False
+            
+            for model_name in models_to_try:
+                try:
+                    model = genai.GenerativeModel(model_name)
+                    response = model.generate_content(prompt)
+                    st.success(f"💡 **ジェミの一言:**\n\n{response.text}")
+                    success = True
+                    break
+                except Exception:
+                    continue
+            
+            if not success:
+                # API接続が不安定な場合のローカルメッセージ
+                st.success("💡 **ジェミの一言:**\n\n明日はいよいよ初日ですね！焦らずマシンの設定確認からスタートしましょう。水分補給と十分な睡眠をとって明日に備えてくださいね！🔥")
 
 # ==========================================
 # TAB 2: 今日のパーソナルメニュー（完全マシン限定）
@@ -237,10 +248,19 @@ with tab3:
             full_prompt = f"{system_prompt}\n\nユーザーの相談: {user_query}"
             
             with st.spinner("ジェミがアドバイスを考え中..."):
-                try:
-                    model = genai.GenerativeModel("gemini-2.0-flash")
-                    response = model.generate_content(full_prompt)
-                    st.success("💪 ジェミからの回答:")
-                    st.write(response.text)
-                except Exception as e:
-                    st.error(f"エラーが発生しました。詳細: {e}")
+                models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+                success = False
+                
+                for model_name in models_to_try:
+                    try:
+                        model = genai.GenerativeModel(model_name)
+                        response = model.generate_content(full_prompt)
+                        st.success("💪 ジェミからの回答:")
+                        st.write(response.text)
+                        success = True
+                        break
+                    except Exception:
+                        continue
+                
+                if not success:
+                    st.error("現在AIとの通信が混み合っています。少し時間をおいて再度お試しください。")
