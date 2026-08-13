@@ -6,18 +6,23 @@ import datetime
 # --- ページ設定 ---
 st.set_page_config(page_title="健康ダイエット App", page_icon="🏋️‍♂️", layout="centered")
 
-# --- CSS設定（タブを上部に固定） ---
+# --- CSS設定（スマホでも確実にタブを上部固定） ---
 st.markdown("""
     <style>
-    /* Streamlitのタブヘッダーを上部に固定 */
-    div[data-baseweb="tab-list"] {
+    /* モバイル・Web共通：タブ全体のリスト部分を画面上部に固定 */
+    div[data-testid="stTabs"] > div:first-child {
         position: sticky;
         top: 0;
-        background-color: var(--background-color, #ffffff);
-        z-index: 999;
-        padding-top: 10px;
-        padding-bottom: 10px;
-        border-bottom: 1px solid #e0e0e0;
+        background-color: #ffffff;
+        z-index: 9999;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #f0f2f6;
+    }
+    
+    /* タブ切り替え時のスクロール位置ズレを防止 */
+    .stMainBlockContainer {
+        padding-top: 1rem !important;
     }
     </style>
 """, unsafe_allow_html=True)
