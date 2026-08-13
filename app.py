@@ -6,61 +6,48 @@ import datetime
 # --- ページ設定 ---
 st.set_page_config(page_title="健康ダイエット App", page_icon="🏋️‍♂️", layout="centered")
 
-# --- CSS設定（画面最上部に完全固定 & コンテンツの重なり防止） ---
-st.markdown("""
-    <style>
-    /* Streamlit標準の最上部ヘッダー背景を白にして固定 */
-    header[data-testid="stHeader"] {
-        background-color: #ffffff !important;
-        z-index: 99990 !important;
-    }
-
-    /* タブバーを画面上部に強制固定 (fixed) */
-    div[data-testid="stTabs"] > div:first-child {
-        position: fixed !important;
-        top: 3.5rem !important; /* Streamlitヘッダーのすぐ下に配置 */
-        left: 0 !important;
-        right: 0 !important;
-        width: 100% !important;
-        background-color: #ffffff !important;
-        z-index: 99999 !important;
-        padding: 6px 16px !important;
-        border-bottom: 2px solid #e2e8f0 !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
-    }
-
-    /* タブが固定された分、メインコンテンツの上が隠れないように余白を開ける */
-    .stMainBlockContainer {
-        padding-top: 5rem !important;
-    }
-
-    /* タブコンテナ自体の余白調整 */
-    div[data-testid="stTabs"] {
-        margin-top: 1rem;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 # --- APIキーの設定 ---
 api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
 
-# --- タイトル ---
-st.title("🏋️‍♂️ 健康ダイエット App")
-st.caption("目標: 80kg → 70kg（完全パーソナル管理 × 筋トレマシン限定プログラム）")
-
 # --- 明日スタートの設定 ---
 tomorrow = datetime.date.today() + datetime.timedelta(days=1)
 
-# --- セッション状態の初期化（開始日・体重履歴） ---
+# --- セッション状態の初期化 ---
 if "start_date" not in st.session_state:
     st.session_state.start_date = tomorrow
 if "weight_history" not in st.session_state:
     st.session_state.weight_history = {tomorrow: 80.0}
 
-# --- タブ作成 ---
-tab1, tab2, tab3 = st.tabs(["⚖️ 体重トラッカー", "💪 今日のメニュー", "🤖 ジェミ相談室"])
+# --- ヘッダー・タイトル ---
+st.title("🏋️‍♂️ 健康ダイエット App")
+st.caption("目標: 80kg → 70kg（完全パーソナル管理 × 筋トレマシン限定プログラム）")
+
+# --- 確実に固定されるCSS（ラジオボタンをタブ化＆上部固定） ---
+st.markdown("""
+    <style>
+    /* ナビゲーションメニューを画面最上部に固定 */
+    div[data-testid="stHorizontalBlock"] {
+        position: sticky;
+        top: 0;
+        background-color: #ffffff;
+        z-index: 9999;
+        padding: 10px 0;
+        border-bottom: 2px solid #e0e0e0;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- タブの代わりとなる確実なメニュー切り替え ---
+selected_menu = st.radio(
+    "メニュー切り替え",
+    ["⚖️ 体重トラッカー", "💪 今日のメニュー", "🤖 ジェミ相談室"],
+    horizontal=True,
+    label_visibility="collapsed"
+)
+
+st.markdown("---")
 
 # 今日の日付と経過日数
 today_date = datetime.date.today()
@@ -73,12 +60,11 @@ initial_weight = weights[0]
 weight_diff = round(latest_weight - initial_weight, 1)
 
 # ==========================================
-# TAB 1: 体重トラッカー ＆ ジェミの総合提案
+# ページ 1: 体重トラッカー ＆ ジェミの総合提案
 # ==========================================
-with tab1:
+if selected_menu == "⚖️ 体重トラッカー":
     st.header("☀️ 今朝の体重を入力")
     
-    # 開始日の変更設定
     with st.expander("⚙️ トレーニング開始日の設定"):
         input_start = st.date_input("開始日", value=st.session_state.start_date)
         if input_start != st.session_state.start_date:
@@ -100,7 +86,6 @@ with tab1:
     st.markdown("---")
     st.subheader("🤖 ジェミ・トレーナーからの定期診断＆提案")
 
-    # 日数 ✕ 体重推移の総合判断ロジック
     if days_passed <= 0:
         advice_status = "🔥 **【明日からスタート！】**"
         proposal = (
@@ -159,11 +144,11 @@ with tab1:
                 st.success("💡 **ジェミの一言:**\n\n明日はいよいよ初日ですね！焦らずマシンの設定確認からスタートしましょう。水分補給と十分な睡眠をとって明日に備えてくださいね！🔥")
 
 # ==========================================
-# TAB 2: 今日のパーソナルメニュー（完全マシン限定）
+# ページ 2: 今日のパーソナルメニュー（完全マシン限定）
 # ==========================================
-with tab2:
+elif selected_menu == "💪 今日のメニュー":
     WEEKLY_SCHEDULE = {
-        0: { # 月曜日
+        0: {
             "day_name": "月曜日",
             "type": "🏋️‍♂️ 【ジムの日】上半身（胸・肩・二の腕）＋ 脂肪燃焼有酸素",
             "menu": [
@@ -175,7 +160,7 @@ with tab2:
             ],
             "point": "マシンに身体を固定して大きな筋肉を安全に追い込みます！筋トレ後の『傾斜早歩き』で脂肪を一気に燃やしましょう！"
         },
-        1: { # 火曜日
+        1: {
             "day_name": "火曜日",
             "type": "🧘‍♂️ 完全オフ（筋肉の回復Day）",
             "menu": [
@@ -185,7 +170,7 @@ with tab2:
             ],
             "point": "ジムはお休みです！筋肉を休ませることで基礎代謝が上がり、痩せやすい体になります。"
         },
-        2: { # 水曜日
+        2: {
             "day_name": "水曜日",
             "type": "🏋️‍♂️ 【ジムの日】下半身・腹筋 ＋ 脂肪燃焼有酸素",
             "menu": [
@@ -196,7 +181,7 @@ with tab2:
             ],
             "point": "人体で最大の「下半身のマシン」を使った後、バイクで有酸素運動！効率バツグンです。"
         },
-        3: { # 木曜日
+        3: {
             "day_name": "木曜日",
             "type": "🧘‍♂️ 完全オフ（リカバリーDay）",
             "menu": [
@@ -205,7 +190,7 @@ with tab2:
             ],
             "point": "疲労をしっかり抜く大切な日です。しっかりリフレッシュしましょう！"
         },
-        4: { # 金曜日
+        4: {
             "day_name": "金曜日",
             "type": "🏋️‍♂️ 【ジムの日】背中・腕 ＋ 脂肪燃焼有酸素",
             "menu": [
@@ -216,7 +201,7 @@ with tab2:
             ],
             "point": "背中マシンで姿勢を整え、見た目を引き締めます！最後の有酸素で1週間の仕上げです。"
         },
-        5: { # 土曜日
+        5: {
             "day_name": "土曜日",
             "type": "🧘‍♂️ 休日リフレッシュDay",
             "menu": [
@@ -225,7 +210,7 @@ with tab2:
             ],
             "point": "ジムもお休み！無理せず体を休めて、週明けのジムに備えましょう。"
         },
-        6: { # 日曜日
+        6: {
             "day_name": "日曜日",
             "type": "🧘‍♂️ 休日リフレッシュDay",
             "menu": [
@@ -258,9 +243,9 @@ with tab2:
             st.markdown("---")
 
 # ==========================================
-# TAB 3: ジェミ相談室
+# ページ 3: ジェミ相談室
 # ==========================================
-with tab3:
+elif selected_menu == "🤖 ジェミ相談室":
     st.header("🤖 パーソナルトレーナー・ジェミ")
     st.write("「マシンの使い方がわからない」「提案された内容について詳しく聞きたい」など、何でも相談してください！")
     
