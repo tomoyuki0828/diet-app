@@ -11,10 +11,6 @@ api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
 
-# --- タイトル ---
-st.title("🏋️‍♂️ 健康ダイエット App")
-st.caption("目標: 80kg → 70kg（完全パーソナル管理 × 筋トレマシン限定プログラム）")
-
 # --- 明日スタートの設定 ---
 tomorrow = datetime.date.today() + datetime.timedelta(days=1)
 
@@ -24,8 +20,17 @@ if "start_date" not in st.session_state:
 if "weight_history" not in st.session_state:
     st.session_state.weight_history = {tomorrow: 80.0}
 
-# --- 元の綺麗なタブUI ---
-tab1, tab2, tab3 = st.tabs(["⚖️ 体重トラッカー", "💪 今日のメニュー", "🤖 ジェミ相談室"])
+# ==========================================
+# サイドバー（固定ナビゲーション）
+# ==========================================
+with st.sidebar:
+    st.title("🏋️‍♂️ メニュー")
+    page = st.radio(
+        "ページを選択してください",
+        ["⚖️ 体重トラッカー", "💪 今日のメニュー", "🤖 ジェミ相談室"]
+    )
+    st.markdown("---")
+    st.caption("目標: 80kg → 70kg\n完全パーソナル管理")
 
 # 今日の日付と経過日数
 today_date = datetime.date.today()
@@ -38,9 +43,13 @@ initial_weight = weights[0]
 weight_diff = round(latest_weight - initial_weight, 1)
 
 # ==========================================
-# TAB 1: 体重トラッカー ＆ ジェミの総合提案
+# ページ 1: 体重トラッカー ＆ ジェミの総合提案
 # ==========================================
-with tab1:
+if page == "⚖️ 体重トラッカー":
+    st.title("⚖️ 体重トラッカー")
+    st.caption("毎日の体重を記録して、ジェミからのアドバイスを受け取りましょう！")
+    st.markdown("---")
+
     st.header("☀️ 今朝の体重を入力")
     
     # 開始日の変更設定
@@ -65,7 +74,6 @@ with tab1:
     st.markdown("---")
     st.subheader("🤖 ジェミ・トレーナーからの定期診断＆提案")
 
-    # 日数 ✕ 体重推移の総合判断ロジック
     if days_passed <= 0:
         advice_status = "🔥 **【明日からスタート！】**"
         proposal = (
@@ -96,7 +104,7 @@ with tab1:
         proposal = (
             f"祝・1ヶ月達成！現在の体重変化: `{weight_diff}kg` です！\n\n"
             "体が現在のマシンメニューの刺激に慣れてくる頃です。筋肉に新しい刺激を与えてさらに痩せやすくするために、**『第2章：新マシンプログラム』へのアップデート**をおすすめします！\n\n"
-            "👉 チャットでジェミに『1ヶ月経ったから新しいメニューにして！』と声をかけてくださいね！"
+            "👉 左側メニューの『ジェミ相談室』で『1ヶ月経ったから新しいメニューにして！』と声をかけてくださいね！"
         )
 
     st.info(f"{advice_status}\n\n{proposal}")
@@ -124,9 +132,13 @@ with tab1:
                 st.success("💡 **ジェミの一言:**\n\n明日はいよいよ初日ですね！焦らずマシンの設定確認からスタートしましょう。水分補給と十分な睡眠をとって明日に備えてくださいね！🔥")
 
 # ==========================================
-# TAB 2: 今日のパーソナルメニュー（完全マシン限定）
+# ページ 2: 今日のパーソナルメニュー（完全マシン限定）
 # ==========================================
-with tab2:
+elif page == "💪 今日のメニュー":
+    st.title("💪 今日のメニュー")
+    st.caption("マシン限定パーソナルプログラム")
+    st.markdown("---")
+
     WEEKLY_SCHEDULE = {
         0: {
             "day_name": "月曜日",
@@ -223,10 +235,13 @@ with tab2:
             st.markdown("---")
 
 # ==========================================
-# TAB 3: ジェミ相談室
+# ページ 3: ジェミ相談室
 # ==========================================
-with tab3:
-    st.header("🤖 パーソナルトレーナー・ジェミ")
+elif page == "🤖 ジェミ相談室":
+    st.title("🤖 ジェミ相談室")
+    st.caption("パーソナルトレーナー・ジェミになんでも相談できます")
+    st.markdown("---")
+
     st.write("「マシンの使い方がわからない」「提案された内容について詳しく聞きたい」など、何でも相談してください！")
     
     user_query = st.text_area("質問・相談を入力", placeholder="例：初日に持っていくと良いものや準備しておくべきことは？")
