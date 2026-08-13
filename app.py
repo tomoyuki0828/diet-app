@@ -7,10 +7,6 @@ import pandas as pd
 # --- ページ設定 ---
 st.set_page_config(page_title="健康ダイエット App", page_icon="🏋️‍♂️", layout="centered")
 
-# --- Googleスプレッドシート連携 (CSV直接読み込み & 書き込み用URL) ---
-SHEET_ID = "1-dda6Ot1tswMNRQqjhc9BDDcTmMnMmm2yhYAxI773D4"
-CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
-
 # --- APIキーの設定 ---
 api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
 if api_key:
@@ -19,23 +15,20 @@ if api_key:
 # --- 今日の日付 ---
 today_date = datetime.date.today()
 
-# --- データ読み込み関数 ---
-def load_data():
-    try:
-        df = pd.read_csv(CSV_URL)
-        df["日付"] = pd.to_datetime(df["日付"]).dt.date
-        df["体重"] = pd.to_numeric(df["体重"], errors="coerce")
-        df = df.dropna().sort_values("日付").reset_index(drop=True)
-        return df
-    except Exception:
-        # 万が一読み込めない場合の初期値
-        return pd.DataFrame([{"日付": today_date, "体重": 80.0}])
-
 # --- セッション状態の初期化 ---
 if "start_date" not in st.session_state:
     st.session_state.start_date = today_date
 
-df_weight = load_data()
+if "weight_records" not in st.session_state:
+    # 初期データ（本日のスタート記録）
+    st.session_state.weight_records = {
+        today_date: 77.9
+    }
+
+# データフレームの作成
+df_records = pd.DataFrame([
+    {"日付": k, "体重": v} for k, v in st.session_state.weight_records.items()
+]).sort_values("日付").reset_index(drop=True)
 
 # ==========================================
 # サイドバー（固定ナビゲーション）
@@ -72,20 +65,13 @@ if page == "⚖️ 体重トラッカー":
     st.success(f"⏱️ **トレーニング開始から:** `{days_passed} 日目` 🔥")
     
     # 最新の記録を取得
-    latest_val = float(df_weight["体重"].iloc[-1]) if not df_weight.empty else 80.0
+    latest_val = float(df_records["体重"].iloc[-1]) if not df_records.empty else 77.9
     input_weight = st.number_input("本日の体重 (kg)", min_value=30.0, max_value=200.0, value=latest_val, step=0.1)
     
     if st.button("保存して7日間平均を分析 🚀", use_container_width=True):
-        # スプレッドシート追加用の処理メッセージ
-        st.session_state.temp_weight = input_weight
-        
-        # 新しいデータを反映
-        new_row = pd.DataFrame([{"日付": today_date, "体重": input_weight}])
-        df_updated = df_weight[df_weight["日付"] != today_date]
-        df_updated = pd.concat([df_updated, new_row], ignore_index=True)
-        
+        # 記録を更新・追加
+        st.session_state.weight_records[today_date] = input_weight
         st.success(f"体重 {input_weight} kg を記録しました！")
-        st.info("💡 **スプレッドシート保存方法:** 上記のGoogleシートURL（編集権限付）にデータが蓄積されます。")
         st.rerun()
 
     st.markdown("---")
@@ -95,21 +81,28 @@ if page == "⚖️ 体重トラッカー":
     # ==========================================
     st.subheader("📈 体重推移 ＆ 7日間平均チェック")
     
-    if not df_weight.empty:
-        # 折れ線グラフ表示
-        chart_df = df_weight.copy()
+    if not df_records.empty:
+        # 1. グラフの表示
+        chart_df = df_records.copy()
         chart_df["日付"] = pd.to_datetime(chart_df["日付"])
         chart_df = chart_df.set_index("日付")
+        
+        # 1日の記録でも見やすいように表示
         st.line_chart(chart_df["体重"])
         
-        # --- 7日間平均の判定計算 ---
-        recent_7 = df_weight.tail(7)["体重"]
+        # 2. 7日間平均の算出
+        recent_7 = df_records.tail(7)["体重"]
         current_avg = round(recent_7.mean(), 2)
         
-        st.metric(label="📊 直近7日間の平均体重", value=f"{current_avg} kg")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric(label="📊 本日の体重", value=f"{input_weight} kg")
+        with col2:
+            st.metric(label="📈 直近7日の平均体重", value=f"{current_avg} kg")
         
-        if len(df_weight) >= 14:
-            prev_7 = df_weight.iloc[-14:-7]["体重"]
+        # 3. 判定ロジック（データが14日以上ある場合）
+        if len(df_records) >= 14:
+            prev_7 = df_records.iloc[-14:-7]["体重"]
             prev_avg = round(prev_7.mean(), 2)
             diff = round(current_avg - prev_avg, 2)
             
@@ -117,20 +110,22 @@ if page == "⚖️ 体重トラッカー":
             st.write(f"・今週の7日間平均: **{current_avg} kg** （変化: **{diff} kg**）")
             
             if diff < 0:
-                st.success(f"🎉 **【順調です！判定：OK】**\n\n先週より平均が `{abs(diff)}kg` 下がっています！正しいペースで脂肪が落ちています。この調子で今のメニューを継続しましょう！")
+                st.success(f"🎉 **【順調です！判定：OK】**\n\n先週より平均が `{abs(diff)}kg` 下がっています！正しいペースで脂肪が落ちています！")
             else:
-                st.warning(f"⚠️ **【停滞期かも？判定：要調整】**\n\n先週より平均が下がっていません（+{diff}kg）。焦る必要はありません！ジェミのアドバイスをチェックしましょう。")
-                
+                st.warning(f"⚠️ **【停滞期かも？判定：要調整】**\n\n先週より平均が下がっていません（+{diff}kg）。ジェミのアドバイスをチェックしましょう！")
                 st.info(
                     "💡 **【ジェミからの改善アドバイス】**\n\n"
-                    "平均が下がっていない時は、身体が現在のカロリー消費に慣れたサインです！\n"
-                    "1. ジムでの**有酸素運動（早歩き/バイク）を＋5分伸ばす**\n"
-                    "2. 普段より**お水を＋500ml多く飲む**（代謝UP）\n"
-                    "3. 間食の脂質を少しだけカットしてみる\n\n"
-                    "この3つのうち1つを今日から試してみましょう！"
+                    "平均が下がっていない時は身体が慣れたサインです！\n"
+                    "1. 有酸素運動（早歩き/バイク）を＋5分伸ばす\n"
+                    "2. お水を＋500ml多く飲む\n"
+                    "どれか1つを今日から試してみましょう！"
                 )
         else:
-            st.info("💡 **7日間平均の判定について:**\nデータが7日〜14日分溜まると、自動で「先週の7日平均」と比較して**OK判定（順調）**か**要調整（ジェミ助言）**を自動診断します！")
+            days_left = 7 - len(df_records)
+            if days_left > 0:
+                st.info(f"💡 **7日間平均判定まであと {days_left} 日分！**\n毎日記録が蓄積されると、前週の平均と比較して「OK判定」や「改善アドバイス」が自動表示されます！")
+            else:
+                st.info("💡 **データの蓄積中！** 14日分のデータが溜まると先週との比較判定が始まります。")
 
     st.markdown("---")
     st.subheader("🤖 ジェミ・トレーナーからの本日の助言")
@@ -139,7 +134,7 @@ if page == "⚖️ 体重トラッカー":
         if not api_key:
             st.error("APIキーが設定されていません。")
         else:
-            prompt = f"本日{input_weight}kg（7日間平均{current_avg}kg）。目標80kg→70kg。専属トレーナーとしてモチベーションが上がるワンポイント助言を100文字程度で提供してください。"
+            prompt = f"本日{input_weight}kg。目標80kg→70kg。本日がジム初回です。専属トレーナーとしてやる気が湧くワンポイント助言を100文字程度で提供してください。"
             
             models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
             success = False
@@ -155,7 +150,7 @@ if page == "⚖️ 体重トラッカー":
                     continue
             
             if not success:
-                st.success("💡 **ジェミの一言:**\n\n毎日コツコツ記録できていて素晴らしいです！水分補給をしっかり行い、今日も自分のペースで進めていきましょう！🔥")
+                st.success("💡 **ジェミの一言:**\n\nいよいよ初日ですね！焦らずマシンの設定確認からスタートしましょう。水分補給をしっかり行って頑張ってください！🔥")
 
 # ==========================================
 # ページ 2: 今日のパーソナルメニュー（完全マシン限定）
