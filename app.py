@@ -11,6 +11,10 @@ api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
 
+# --- タイトル ---
+st.title("🏋️‍♂️ 健康ダイエット App")
+st.caption("目標: 80kg → 70kg（完全パーソナル管理 × 筋トレマシン限定プログラム）")
+
 # --- 明日スタートの設定 ---
 tomorrow = datetime.date.today() + datetime.timedelta(days=1)
 
@@ -20,34 +24,8 @@ if "start_date" not in st.session_state:
 if "weight_history" not in st.session_state:
     st.session_state.weight_history = {tomorrow: 80.0}
 
-# --- ヘッダー・タイトル ---
-st.title("🏋️‍♂️ 健康ダイエット App")
-st.caption("目標: 80kg → 70kg（完全パーソナル管理 × 筋トレマシン限定プログラム）")
-
-# --- 確実に固定されるCSS（ラジオボタンをタブ化＆上部固定） ---
-st.markdown("""
-    <style>
-    /* ナビゲーションメニューを画面最上部に固定 */
-    div[data-testid="stHorizontalBlock"] {
-        position: sticky;
-        top: 0;
-        background-color: #ffffff;
-        z-index: 9999;
-        padding: 10px 0;
-        border-bottom: 2px solid #e0e0e0;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- タブの代わりとなる確実なメニュー切り替え ---
-selected_menu = st.radio(
-    "メニュー切り替え",
-    ["⚖️ 体重トラッカー", "💪 今日のメニュー", "🤖 ジェミ相談室"],
-    horizontal=True,
-    label_visibility="collapsed"
-)
-
-st.markdown("---")
+# --- 元の綺麗なタブUI ---
+tab1, tab2, tab3 = st.tabs(["⚖️ 体重トラッカー", "💪 今日のメニュー", "🤖 ジェミ相談室"])
 
 # 今日の日付と経過日数
 today_date = datetime.date.today()
@@ -60,11 +38,12 @@ initial_weight = weights[0]
 weight_diff = round(latest_weight - initial_weight, 1)
 
 # ==========================================
-# ページ 1: 体重トラッカー ＆ ジェミの総合提案
+# TAB 1: 体重トラッカー ＆ ジェミの総合提案
 # ==========================================
-if selected_menu == "⚖️ 体重トラッカー":
+with tab1:
     st.header("☀️ 今朝の体重を入力")
     
+    # 開始日の変更設定
     with st.expander("⚙️ トレーニング開始日の設定"):
         input_start = st.date_input("開始日", value=st.session_state.start_date)
         if input_start != st.session_state.start_date:
@@ -86,6 +65,7 @@ if selected_menu == "⚖️ 体重トラッカー":
     st.markdown("---")
     st.subheader("🤖 ジェミ・トレーナーからの定期診断＆提案")
 
+    # 日数 ✕ 体重推移の総合判断ロジック
     if days_passed <= 0:
         advice_status = "🔥 **【明日からスタート！】**"
         proposal = (
@@ -144,9 +124,9 @@ if selected_menu == "⚖️ 体重トラッカー":
                 st.success("💡 **ジェミの一言:**\n\n明日はいよいよ初日ですね！焦らずマシンの設定確認からスタートしましょう。水分補給と十分な睡眠をとって明日に備えてくださいね！🔥")
 
 # ==========================================
-# ページ 2: 今日のパーソナルメニュー（完全マシン限定）
+# TAB 2: 今日のパーソナルメニュー（完全マシン限定）
 # ==========================================
-elif selected_menu == "💪 今日のメニュー":
+with tab2:
     WEEKLY_SCHEDULE = {
         0: {
             "day_name": "月曜日",
@@ -243,9 +223,9 @@ elif selected_menu == "💪 今日のメニュー":
             st.markdown("---")
 
 # ==========================================
-# ページ 3: ジェミ相談室
+# TAB 3: ジェミ相談室
 # ==========================================
-elif selected_menu == "🤖 ジェミ相談室":
+with tab3:
     st.header("🤖 パーソナルトレーナー・ジェミ")
     st.write("「マシンの使い方がわからない」「提案された内容について詳しく聞きたい」など、何でも相談してください！")
     
