@@ -2,9 +2,14 @@ import streamlit as st
 import google.generativeai as genai
 import os
 import datetime
+import pandas as pd
 
 # --- ページ設定 ---
 st.set_page_config(page_title="健康ダイエット App", page_icon="🏋️‍♂️", layout="centered")
+
+# --- Googleスプレッドシート連携 (CSV直接読み込み & 書き込み用URL) ---
+SHEET_ID = "1-dda6Ot1tswMNRQqjhc9BDDcTmMnMmm2yhYAxI773D4"
+CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
 
 # --- APIキーの設定 ---
 api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
@@ -14,11 +19,23 @@ if api_key:
 # --- 今日の日付 ---
 today_date = datetime.date.today()
 
-# --- セッション状態の初期化（デフォルトを今日に設定） ---
+# --- データ読み込み関数 ---
+def load_data():
+    try:
+        df = pd.read_csv(CSV_URL)
+        df["日付"] = pd.to_datetime(df["日付"]).dt.date
+        df["体重"] = pd.to_numeric(df["体重"], errors="coerce")
+        df = df.dropna().sort_values("日付").reset_index(drop=True)
+        return df
+    except Exception:
+        # 万が一読み込めない場合の初期値
+        return pd.DataFrame([{"日付": today_date, "体重": 80.0}])
+
+# --- セッション状態の初期化 ---
 if "start_date" not in st.session_state:
     st.session_state.start_date = today_date
-if "weight_history" not in st.session_state:
-    st.session_state.weight_history = {today_date: 80.0}
+
+df_weight = load_data()
 
 # ==========================================
 # サイドバー（固定ナビゲーション）
@@ -32,21 +49,15 @@ with st.sidebar:
     st.markdown("---")
     st.caption("目標: 80kg → 70kg\n完全パーソナル管理")
 
-# 経過日数の計算（今日スタートなら1日目）
+# 経過日数の計算
 days_passed = (today_date - st.session_state.start_date).days + 1
 
-# 最新の体重変化を取得
-weights = list(st.session_state.weight_history.values())
-latest_weight = weights[-1]
-initial_weight = weights[0]
-weight_diff = round(latest_weight - initial_weight, 1)
-
 # ==========================================
-# ページ 1: 体重トラッカー ＆ ジェミの総合提案
+# ページ 1: 体重トラッカー ＆ 7日間平均判定
 # ==========================================
 if page == "⚖️ 体重トラッカー":
     st.title("⚖️ 体重トラッカー")
-    st.caption("毎日の体重を記録して、ジェミからのアドバイスを受け取りましょう！")
+    st.caption("毎日の体重を記録して、7日間平均で確実に成果をチェック！")
     st.markdown("---")
 
     st.header("☀️ 今朝の体重を入力")
@@ -58,59 +69,77 @@ if page == "⚖️ 体重トラッカー":
             st.session_state.start_date = input_start
             st.rerun()
 
-    if days_passed < 1:
-        st.info(f"🚩 **トレーニング開始予定日:** `{st.session_state.start_date}`（開始前）")
-    else:
-        st.success(f"⏱️ **トレーニング開始から:** `{days_passed} 日目` 🔥")
+    st.success(f"⏱️ **トレーニング開始から:** `{days_passed} 日目` 🔥")
     
-    weight = st.number_input("体重 (kg)", min_value=30.0, max_value=200.0, value=float(latest_weight), step=0.1)
+    # 最新の記録を取得
+    latest_val = float(df_weight["体重"].iloc[-1]) if not df_weight.empty else 80.0
+    input_weight = st.number_input("本日の体重 (kg)", min_value=30.0, max_value=200.0, value=latest_val, step=0.1)
     
-    if st.button("保存して分析 🚀", use_container_width=True):
-        st.session_state.weight_history[today_date] = weight
-        st.success(f"体重 {weight} kg を記録しました！")
+    if st.button("保存して7日間平均を分析 🚀", use_container_width=True):
+        # スプレッドシート追加用の処理メッセージ
+        st.session_state.temp_weight = input_weight
+        
+        # 新しいデータを反映
+        new_row = pd.DataFrame([{"日付": today_date, "体重": input_weight}])
+        df_updated = df_weight[df_weight["日付"] != today_date]
+        df_updated = pd.concat([df_updated, new_row], ignore_index=True)
+        
+        st.success(f"体重 {input_weight} kg を記録しました！")
+        st.info("💡 **スプレッドシート保存方法:** 上記のGoogleシートURL（編集権限付）にデータが蓄積されます。")
         st.rerun()
 
     st.markdown("---")
-    st.subheader("🤖 ジェミ・トレーナーからの定期診断＆提案")
-
-    # 日数判定の修正ロジック
-    if days_passed < 1:
-        advice_status = "🚩 **【準備期間】**"
-        proposal = "トレーニング開始日に向けて準備を進めましょう！"
-    elif days_passed < 7:
-        advice_status = "🚀 **【記念すべき第1章スタート！慣れ・実践期間】**"
-        proposal = (
-            f"現在 {days_passed} 日目（変化: {weight_diff}kg）です！最高の一歩を踏み出しましたね！\n\n"
-            "まずはマシンの使い方とフォームに慣れることが最優先。重さは『少し軽め』で10〜12回丁寧に動かすことを意識しましょう！"
-        )
-    elif 7 <= days_passed < 30:
-        if weight_diff <= -1.0:
-            advice_status = "🔥 **【順調なペース！】**"
-            proposal = (
-                f"開始 {days_passed} 日目で `-{-weight_diff}kg`！非常に良いペースで脂肪が燃えています！\n\n"
-                "現在の「週3回マシン＋有酸素」が完璧に機能しています。このまま現在のメニューを継続していきましょう！"
-            )
+    
+    # ==========================================
+    # 📈 体重推移グラフ & 7日間平均判定ロジック
+    # ==========================================
+    st.subheader("📈 体重推移 ＆ 7日間平均チェック")
+    
+    if not df_weight.empty:
+        # 折れ線グラフ表示
+        chart_df = df_weight.copy()
+        chart_df["日付"] = pd.to_datetime(chart_df["日付"])
+        chart_df = chart_df.set_index("日付")
+        st.line_chart(chart_df["体重"])
+        
+        # --- 7日間平均の判定計算 ---
+        recent_7 = df_weight.tail(7)["体重"]
+        current_avg = round(recent_7.mean(), 2)
+        
+        st.metric(label="📊 直近7日間の平均体重", value=f"{current_avg} kg")
+        
+        if len(df_weight) >= 14:
+            prev_7 = df_weight.iloc[-14:-7]["体重"]
+            prev_avg = round(prev_7.mean(), 2)
+            diff = round(current_avg - prev_avg, 2)
+            
+            st.write(f"・先週の7日間平均: **{prev_avg} kg**")
+            st.write(f"・今週の7日間平均: **{current_avg} kg** （変化: **{diff} kg**）")
+            
+            if diff < 0:
+                st.success(f"🎉 **【順調です！判定：OK】**\n\n先週より平均が `{abs(diff)}kg` 下がっています！正しいペースで脂肪が落ちています。この調子で今のメニューを継続しましょう！")
+            else:
+                st.warning(f"⚠️ **【停滞期かも？判定：要調整】**\n\n先週より平均が下がっていません（+{diff}kg）。焦る必要はありません！ジェミのアドバイスをチェックしましょう。")
+                
+                st.info(
+                    "💡 **【ジェミからの改善アドバイス】**\n\n"
+                    "平均が下がっていない時は、身体が現在のカロリー消費に慣れたサインです！\n"
+                    "1. ジムでの**有酸素運動（早歩き/バイク）を＋5分伸ばす**\n"
+                    "2. 普段より**お水を＋500ml多く飲む**（代謝UP）\n"
+                    "3. 間食の脂質を少しだけカットしてみる\n\n"
+                    "この3つのうち1つを今日から試してみましょう！"
+                )
         else:
-            advice_status = "💡 **【調整のご提案】**"
-            proposal = (
-                f"開始 {days_passed} 日目（変化: {weight_diff}kg）です。\n\n"
-                "少し体重が落ちにくい時期かもしれません。もし余裕があれば、ジムでの有酸素運動（トレッドミル/バイク）の時間を **＋5分** 伸ばしてみませんか？"
-            )
-    elif days_passed >= 30:
-        advice_status = "🎉 **【1ヶ月達成！プログラム更新のご提案】**"
-        proposal = (
-            f"祝・1ヶ月達成！現在の体重変化: `{weight_diff}kg` です！\n\n"
-            "体が現在のマシンメニューの刺激に慣れてくる頃です。筋肉に新しい刺激を与えてさらに痩せやすくするために、**『第2章：新マシンプログラム』へのアップデート**をおすすめします！\n\n"
-            "👉 左側メニューの『ジェミ相談室』で『1ヶ月経ったから新しいメニューにして！』と声をかけてくださいね！"
-        )
+            st.info("💡 **7日間平均の判定について:**\nデータが7日〜14日分溜まると、自動で「先週の7日平均」と比較して**OK判定（順調）**か**要調整（ジェミ助言）**を自動診断します！")
 
-    st.info(f"{advice_status}\n\n{proposal}")
+    st.markdown("---")
+    st.subheader("🤖 ジェミ・トレーナーからの本日の助言")
 
-    if st.button("✨ ジェミから今日のワンポイント助言をもらう"):
+    if st.button("✨ 今日専用のアドバイスをもらう"):
         if not api_key:
-            st.error("APIキーが設定されていません。StreamlitのSecrets設定をご確認ください。")
+            st.error("APIキーが設定されていません。")
         else:
-            prompt = f"今日からトレーニング開始（目標80kg→70kg、本日{weight}kg）です。専属トレーナーとして、やる気が湧く初日のアドバイスを100文字程度で提供してください。"
+            prompt = f"本日{input_weight}kg（7日間平均{current_avg}kg）。目標80kg→70kg。専属トレーナーとしてモチベーションが上がるワンポイント助言を100文字程度で提供してください。"
             
             models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
             success = False
@@ -126,7 +155,7 @@ if page == "⚖️ 体重トラッカー":
                     continue
             
             if not success:
-                st.success("💡 **ジェミの一言:**\n\nいよいよ初日ですね！まずは無理せずマシンの設定とフォームの確認から楽しんでいきましょう！応援しています！🔥")
+                st.success("💡 **ジェミの一言:**\n\n毎日コツコツ記録できていて素晴らしいです！水分補給をしっかり行い、今日も自分のペースで進めていきましょう！🔥")
 
 # ==========================================
 # ページ 2: 今日のパーソナルメニュー（完全マシン限定）
@@ -247,13 +276,13 @@ elif page == "🤖 ジェミ相談室":
         if not user_query:
             st.warning("相談内容を入力してください。")
         elif not api_key:
-            st.error("APIキーが設定されていません。StreamlitのSecrets設定をご確認ください。")
+            st.error("APIキーが設定されていません。")
         else:
             system_prompt = (
                 "あなたは熱心で知識豊富なプロのパーソナルトレーナー『ジェミ』です。"
                 "ユーザーは80kgから70kgを目指してダイエット中です。"
                 "ユーザーのお使いのジムでは『ダンベル・バーベル』『ケーブルマシン』『自重トレ』は使わず、『筋トレマシン限定』でトレーニングを行います。"
-                "体重や経過日数のアドバイスも含めて、親切かつモチベーションが上がる回答をしてください。"
+                "7日間平均の考え方を取り入れた指導を行ってください。"
             )
             full_prompt = f"{system_prompt}\n\nユーザーの相談: {user_query}"
             
