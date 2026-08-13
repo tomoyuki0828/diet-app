@@ -107,14 +107,9 @@ with tab1:
         else:
             prompt = f"明日からトレーニング開始予定（目標80kg→70kg）です。専属トレーナーとして、初日に向けたやる気が湧くアドバイスを100文字程度で提供してください。"
             try:
-                # 複数モデルに対応したフォールバック処理
-                try:
-                    model = genai.GenerativeModel("gemini-1.5-flash")
-                    response = model.generate_content(prompt)
-                except Exception:
-                    model = genai.GenerativeModel("gemini-2.5-flash")
-                    response = model.generate_content(prompt)
-                    
+                # 最新推奨モデルを指定
+                model = genai.GenerativeModel("gemini-2.0-flash")
+                response = model.generate_content(prompt)
                 st.success(f"💡 **ジェミの一言:**\n\n{response.text}")
             except Exception as e:
                 st.warning(f"AIメッセージの取得に失敗しました。詳細: {e}")
@@ -243,13 +238,8 @@ with tab3:
             
             with st.spinner("ジェミがアドバイスを考え中..."):
                 try:
-                    try:
-                        model = genai.GenerativeModel("gemini-1.5-flash")
-                        response = model.generate_content(full_prompt)
-                    except Exception:
-                        model = genai.GenerativeModel("gemini-2.5-flash")
-                        response = model.generate_content(full_prompt)
-                        
+                    model = genai.GenerativeModel("gemini-2.0-flash")
+                    response = model.generate_content(full_prompt)
                     st.success("💪 ジェミからの回答:")
                     st.write(response.text)
                 except Exception as e:
