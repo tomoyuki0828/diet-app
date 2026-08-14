@@ -48,9 +48,9 @@ with st.sidebar:
   )
 
   st.markdown("---")
-  # 🔄 アプリ更新ボタン
-  if st.button("🔄 アプリを更新（再読み込み）", use_container_width=True):
-    st.rerun()
+  # 🔄 アプリ更新ボタン（サイドバー）
+  if st.button("🔄 アプリを更新（再読み込み）", key="reload_sidebar", use_container_width=True):
+    st.toast("✅ 画面を最新の状態に更新しました！", icon="🔄")
 
   st.markdown("---")
   st.caption("目標: 80kg → 70kg\n完全パーソナル管理")
@@ -68,7 +68,7 @@ if page == "秤 体重トラッカー":
     st.title("⚖️ 体重トラッカー")
   with top_col2:
     if st.button("🔄 再読み込み", key="reload_top"):
-      st.rerun()
+      st.toast("✅ 画面を最新の状態に更新しました！", icon="🔄")
 
   st.caption("毎日の体重を記録して、7日間平均で確実に成果をチェック！")
   st.markdown("---")
