@@ -49,8 +49,9 @@ with st.sidebar:
   )
 
   st.markdown("---")
-  # 🔄 アプリ更新ボタン
+  # 🔄 アプリ更新ボタン（完了メッセージ付き）
   if st.button("🔄 アプリを更新（再読み込み）", use_container_width=True):
+    st.toast("✅ 再読み込みが完了しました！")
     st.rerun()
 
   st.markdown("---")
@@ -63,12 +64,13 @@ days_passed = (today_date - st.session_state.start_date).days + 1
 # ページ 1: 体重トラッカー ＆ 7日間平均判定
 # ==========================================
 if page == "秤 体重トラッカー":
-  # 画面右上にも再読み込みボタンを配置
+  # 画面右上にも再読み込みボタンを配置（完了メッセージ付き）
   top_col1, top_col2 = st.columns([3, 1])
   with top_col1:
     st.title("⚖️ 体重トラッカー")
   with top_col2:
     if st.button("🔄 再読み込み", key="reload_top"):
+      st.toast("✅ 再読み込みが完了しました！")
       st.rerun()
 
   st.caption("毎日の体重を記録して、7日間平均で確実に成果をチェック！")
@@ -100,7 +102,7 @@ if page == "秤 体重トラッカー":
   if st.button("保存して7日間平均を分析 🚀", use_container_width=True):
     # 記録を更新・追加
     st.session_state.weight_records[today_date] = input_weight
-    st.success(f"体重 {input_weight} kg を記録しました！")
+    st.toast("✅ 体重を保存して分析を完了しました！")
     st.rerun()
 
   st.markdown("---")
@@ -221,7 +223,6 @@ if page == "秤 体重トラッカー":
       )
 
       models_to_try = [
-          "gemini-2.5-flash",
           "gemini-1.5-flash",
           "gemini-1.5-pro",
       ]
@@ -341,7 +342,6 @@ elif page == "💪 今日のメニュー":
           "menu": [
               (
                   "1. **ラットプルダウン（背中）**: **10回 × 3セット** （休憩"
-                  " 60〜90秒）\n   - 【広背筋マシン】上からバーを胸に引き寄せ"
                   " 60〜90秒）\n   - 【広背筋マシン】上からバーを胸に引き寄せる"
               ),
               (
@@ -441,7 +441,6 @@ elif page == "🤖 ジェミ相談室":
 
       with st.spinner("ジェミがアドバイスを考え中..."):
         models_to_try = [
-            "gemini-2.5-flash",
             "gemini-1.5-flash",
             "gemini-1.5-pro",
         ]
