@@ -220,7 +220,11 @@ if page == "秤 体重トラッカー":
           f"本日{input_weight}kg。目標80kg→70kg。本日がジム初回です。専属トレーナーとしてやる気が湧くワンポイント助言を100文字程度で提供してください。"
       )
 
-      models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+      models_to_try = [
+          "gemini-2.5-flash",
+          "gemini-1.5-flash",
+          "gemini-1.5-pro",
+      ]
       success = False
 
       for model_name in models_to_try:
@@ -337,6 +341,7 @@ elif page == "💪 今日のメニュー":
           "menu": [
               (
                   "1. **ラットプルダウン（背中）**: **10回 × 3セット** （休憩"
+                  " 60〜90秒）\n   - 【広背筋マシン】上からバーを胸に引き寄せ"
                   " 60〜90秒）\n   - 【広背筋マシン】上からバーを胸に引き寄せる"
               ),
               (
@@ -435,7 +440,11 @@ elif page == "🤖 ジェミ相談室":
       full_prompt = f"{system_prompt}\n\nユーザーの相談: {user_query}"
 
       with st.spinner("ジェミがアドバイスを考え中..."):
-        models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
+        models_to_try = [
+            "gemini-2.5-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+        ]
         success = False
 
         for model_name in models_to_try:
