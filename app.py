@@ -45,17 +45,30 @@ def load_data_from_sheet():
 
 
 def ask_gemini_api(prompt_text, api_key_val):
-  """旧ライブラリを使わず、直接Rest API(gemini-2.5-flash)を呼び出す関数"""
-  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key_val}"
-  headers = {"Content-Type": "application/json"}
-  payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
+  """AIが利用できない環境やエラー時でもアプリが落ちない安全な通信関数"""
+  if not api_key_val:
+    return "（※APIキーが設定されていないため、定型メッセージを表示しています）継続は力なり！今日もマシンでしっかり汗を流しましょう！"
 
-  response = requests.post(url, json=payload, headers=headers, timeout=10)
-  if response.status_code == 200:
-    res_json = response.json()
-    return res_json["candidates"][0]["content"]["parts"][0]["text"]
-  else:
-    raise Exception(f"HTTP Error {response.status_code}: {response.text}")
+  # 複数のモデル名を順番に試す、または安全にキャッチする
+  models_to_try = ["gemini-1.5-flash", "gemini-2.0-flash"]
+  
+  for model_name in models_to_try:
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key_val}"
+    headers = {"Content-Type": "application/json"}
+    payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
+    try:
+      response = requests.post(url, json=payload, headers=headers, timeout=5)
+      if response.status_code == 200:
+        res_json = response.json()
+        return res_json["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception:
+      continue
+
+  # 万が一すべて失敗した場合は、エラーを出さずにトレーナーらしい温かい定型文を返す
+  return (
+      "💪【ジェミより】\n"
+      "通信環境やAPIの制限によりAIの直接応答が一時的に制限されていますが、あなたのダイエット成功をトレーナーとして全力で応援しています！今日もコツコツ継続していきましょう！"
+  )
 
 
 # --- セッション状態の初期化 ---
@@ -245,21 +258,12 @@ if page == "秤 体重トラッカー":
   st.subheader("🤖 ジェミ・トレーナーからの本日の助言")
 
   if st.button("✨ 今日専用のアドバイスをもらう"):
-    if not api_key:
-      st.error(
-          "⚠️ Streamlit Secrets に GEMINI_API_KEY"
-          " が設定されていません。設定をご確認ください。"
+    with st.spinner("ジェミがアドバイスを作成中..."):
+      prompt = (
+          f"本日{selected_date}の体重は{input_weight}kg。目標80kg→70kg（開始から{days_passed}日目）。"
+          "専属パーソナルトレーナーとして、本日のモチベーションが高まる具体的なワンポイントアドバイスを100文字程度で生成してください。"
       )
-    else:
-      with st.spinner("ジェミが最新のアドバイスを作成中..."):
-        prompt = (
-            f"本日{selected_date}の体重は{input_weight}kg。目標80kg→70kg（開始から{days_passed}日目）。"
-            "専属パーソナルトレーナーとして、本日のモチベーションが高まる具体的なワンポイントアドバイスを100文字程度で生成してください。"
-        )
-        try:
-          st.session_state.jemi_advice = ask_gemini_api(prompt, api_key)
-        except Exception as e:
-          st.error(f"AI通信エラー: {e}")
+      st.session_state.jemi_advice = ask_gemini_api(prompt, api_key)
 
   if st.session_state.jemi_advice:
     st.success(f"💡 **ジェミの一言:**\n\n{st.session_state.jemi_advice}")
@@ -448,11 +452,6 @@ elif page == "🤖 ジェミ相談室":
   if st.button("ジェミに相談する 💬", use_container_width=True):
     if not user_query:
       st.warning("相談内容を入力してください。")
-    elif not api_key:
-      st.error(
-          "⚠️ Streamlit Secrets に GEMINI_API_KEY"
-          " が設定されていません。設定をご確認ください。"
-      )
     else:
       system_prompt = (
           "あなたは熱心で知識豊富なプロのパーソナルトレーナー『ジェミ』です。"
@@ -463,9 +462,6 @@ elif page == "🤖 ジェミ相談室":
       full_prompt = f"{system_prompt}\n\nユーザーの相談: {user_query}"
 
       with st.spinner("ジェミが回答を作成中..."):
-        try:
-          response_text = ask_gemini_api(full_prompt, api_key)
-          st.success("💪 ジェミからの回答:")
-          st.write(response_text)
-        except Exception as e:
-          st.error(f"AI通信エラーが発生しました: {e}")
+        response_text = ask_gemini_api(full_prompt, api_key)
+        st.success("💪 ジェミからの回答:")
+        st.write(response_text)
