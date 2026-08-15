@@ -19,14 +19,47 @@ if api_key:
 # --- 今日の日付（日本時間 JST に正確に設定） ---
 jst = zoneinfo.ZoneInfo("Asia/Tokyo")
 today_date = datetime.datetime.now(jst).date()
+yesterday_date = today_date - datetime.timedelta(days=1)
+
+# --- スプレッドシート設定 ---
+SPREADSHEET_URL = st.secrets.get(
+    "SPREADSHEET_URL",
+    "https://docs.google.com/spreadsheets/d/1-x5GK7WpSEV6ZgvkXTyMsjDA3cbPIzk4VRZJD4Wupbw/edit?usp=drivesdk",
+)
+
+
+# スプレッドシートからのデータ自動読み込み関数
+def load_data_from_sheet():
+  try:
+    # スプレッドシートをCSV形式で取得するURLに変換
+    if "/edit" in SPREADSHEET_URL:
+      csv_url = SPREADSHEET_URL.split("/edit")[0] + "/export?format=csv"
+    else:
+      csv_url = SPREADSHEET_URL + "/export?format=csv"
+
+    df = pd.read_csv(csv_url)
+    df["日付"] = pd.to_datetime(df["日付"]).dt.date
+    df["体重"] = df["体重"].astype(float)
+    return dict(zip(df["日付"], df["体重"]))
+  except Exception as e:
+    # 読み込み失敗時のフォールバック用データ
+    return {
+        yesterday_date: 78.2,
+        today_date: 77.9,
+    }
+
 
 # --- セッション状態の初期化 ---
 if "start_date" not in st.session_state:
-  st.session_state.start_date = today_date
+  st.session_state.start_date = yesterday_date
 
+# 常に最新のスプレッドシートデータを取得して初期化
 if "weight_records" not in st.session_state:
-  # 初期データ（本日のスタート記録）
-  st.session_state.weight_records = {today_date: 77.9}
+  st.session_state.weight_records = load_data_from_sheet()
+
+# 再読み込みメッセージ表示用フラグ
+if "show_reloaded_msg" not in st.session_state:
+  st.session_state.show_reloaded_msg = False
 
 # データフレームの作成
 df_records = (
@@ -39,6 +72,13 @@ df_records = (
 )
 
 # ==========================================
+# 再読み込み完了メッセージの表示チェック
+# ==========================================
+if st.session_state.show_reloaded_msg:
+  st.success("✅ アプリの再読み込みが完了しました！")
+  st.session_state.show_reloaded_msg = False
+
+# ==========================================
 # サイドバー（固定ナビゲーション）
 # ==========================================
 with st.sidebar:
@@ -49,9 +89,10 @@ with st.sidebar:
   )
 
   st.markdown("---")
-  # 🔄 アプリ更新ボタン（完了メッセージ付き）
+  # 🔄 アプリ更新ボタン（完了メッセージ付き＆データ再読み込み）
   if st.button("🔄 アプリを更新（再読み込み）", use_container_width=True):
-    st.toast("✅ 再読み込みが完了しました！")
+    st.session_state.weight_records = load_data_from_sheet()
+    st.session_state.show_reloaded_msg = True
     st.rerun()
 
   st.markdown("---")
@@ -64,19 +105,19 @@ days_passed = (today_date - st.session_state.start_date).days + 1
 # ページ 1: 体重トラッカー ＆ 7日間平均判定
 # ==========================================
 if page == "秤 体重トラッカー":
-  # 画面右上にも再読み込みボタンを配置（完了メッセージ付き）
   top_col1, top_col2 = st.columns([3, 1])
   with top_col1:
     st.title("⚖️ 体重トラッカー")
   with top_col2:
     if st.button("🔄 再読み込み", key="reload_top"):
-      st.toast("✅ 再読み込みが完了しました！")
+      st.session_state.weight_records = load_data_from_sheet()
+      st.session_state.show_reloaded_msg = True
       st.rerun()
 
   st.caption("毎日の体重を記録して、7日間平均で確実に成果をチェック！")
   st.markdown("---")
 
-  st.header("☀️ 今朝の体重を入力")
+  st.header("☀️ 体重の記録")
 
   # 開始日の変更設定
   with st.expander("⚙️ トレーニング開始日の設定"):
@@ -87,12 +128,15 @@ if page == "秤 体重トラッカー":
 
   st.success(f"⏱️ **トレーニング開始から:** `{days_passed} 日目` 🔥")
 
+  # 日付選択の追加（過去の日付の選択・修正が可能）
+  selected_date = st.date_input("記録する日付", value=today_date)
+
   # 最新の記録を取得
   latest_val = (
       float(df_records["体重"].iloc[-1]) if not df_records.empty else 77.9
   )
   input_weight = st.number_input(
-      "本日の体重 (kg)",
+      "入力する体重 (kg)",
       min_value=30.0,
       max_value=200.0,
       value=latest_val,
@@ -100,9 +144,9 @@ if page == "秤 体重トラッカー":
   )
 
   if st.button("保存して7日間平均を分析 🚀", use_container_width=True):
-    # 記録を更新・追加
-    st.session_state.weight_records[today_date] = input_weight
-    st.toast("✅ 体重を保存して分析を完了しました！")
+    # 選択された日付の記録を更新・追加
+    st.session_state.weight_records[selected_date] = input_weight
+    st.success(f"{selected_date} の体重 {input_weight} kg を保存しました！")
     st.rerun()
 
   st.markdown("---")
@@ -113,14 +157,11 @@ if page == "秤 体重トラッカー":
   st.subheader("📈 体重推移 ＆ 7日間平均チェック")
 
   if not df_records.empty:
-    # 日付をdatetime型に変換して「年月 (YYYY-MM)」列を作成
     df_records["日付_dt"] = pd.to_datetime(df_records["日付"])
     df_records["年月"] = df_records["日付_dt"].dt.strftime("%Y-%m")
 
-    # 記録がある月のリストを取得（降順）
     available_months = sorted(df_records["年月"].unique(), reverse=True)
 
-    # 今月をデフォルトで選択（データがなければリストの先頭）
     current_month_str = datetime.datetime.now(jst).strftime("%Y-%m")
     default_index = (
         available_months.index(current_month_str)
@@ -128,21 +169,18 @@ if page == "秤 体重トラッカー":
         else 0
     )
 
-    # 📅 月選択のセレクトボックス
     selected_month = st.selectbox(
         "📅 表示する月を選んでください",
         options=available_months,
         index=default_index,
     )
 
-    # 選択された月の 1日 〜 末日 を自動算出（28/30/31日や閏年も自動で切り替わります）
     year, month = map(int, selected_month.split("-"))
     _, last_day = calendar.monthrange(year, month)
 
     start_date = datetime.date(year, month, 1)
     end_date = datetime.date(year, month, last_day)
 
-    # 選択された月のデータだけに絞り込み
     filtered_df = df_records[
         (df_records["日付"] >= start_date) & (df_records["日付"] <= end_date)
     ].copy()
@@ -150,7 +188,6 @@ if page == "秤 体重トラッカー":
     if not filtered_df.empty:
       filtered_df["日付文字列"] = filtered_df["日付"].astype(str)
 
-      # データが1日の時と複数日の時で表示を切り替え
       if len(filtered_df) == 1:
         st.scatter_chart(filtered_df, x="日付文字列", y="体重", color="#FF4B4B")
       else:
@@ -159,17 +196,15 @@ if page == "秤 体重トラッカー":
     else:
       st.info(f"💡 {selected_month} の体重データはまだありません。")
 
-    # 2. 7日間平均の算出（全体の直近7日）
     recent_7 = df_records.tail(7)["体重"]
     current_avg = round(recent_7.mean(), 2)
 
     col1, col2 = st.columns(2)
     with col1:
-      st.metric(label="📊 本日の体重", value=f"{input_weight} kg")
+      st.metric(label="📊 最新の体重", value=f"{input_weight} kg")
     with col2:
-      st.metric(label="📈 直近7日の平均体重", value=f"{current_avg} kg")
+      st.metric(label="📈 直近の平均体重", value=f"{current_avg} kg")
 
-    # 3. 判定ロジック（データが14日以上ある場合）
     if len(df_records) >= 14:
       prev_7 = df_records.iloc[-14:-7]["体重"]
       prev_avg = round(prev_7.mean(), 2)
