@@ -2,8 +2,8 @@ import calendar
 import datetime
 import os
 import zoneinfo
-import google.generativeai as genai
 import pandas as pd
+import requests
 import streamlit as st
 
 # --- ページ設定 ---
@@ -13,8 +13,6 @@ st.set_page_config(
 
 # --- APIキーの設定 ---
 api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
-if api_key:
-  genai.configure(api_key=api_key)
 
 # --- 今日の日付（日本時間 JST に正確に設定） ---
 jst = zoneinfo.ZoneInfo("Asia/Tokyo")
@@ -44,6 +42,20 @@ def load_data_from_sheet():
         yesterday_date: 78.2,
         today_date: 77.9,
     }
+
+
+def ask_gemini_api(prompt_text, api_key_val):
+  """旧ライブラリを使わず、直接Rest API(gemini-2.5-flash)を呼び出す関数"""
+  url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key_val}"
+  headers = {"Content-Type": "application/json"}
+  payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
+
+  response = requests.post(url, json=payload, headers=headers, timeout=10)
+  if response.status_code == 200:
+    res_json = response.json()
+    return res_json["candidates"][0]["content"]["parts"][0]["text"]
+  else:
+    raise Exception(f"HTTP Error {response.status_code}: {response.text}")
 
 
 # --- セッション状態の初期化 ---
@@ -245,10 +257,7 @@ if page == "秤 体重トラッカー":
             "専属パーソナルトレーナーとして、本日のモチベーションが高まる具体的なワンポイントアドバイスを100文字程度で生成してください。"
         )
         try:
-          # 最新かつ互換性のあるモデル指定
-          model = genai.GenerativeModel("gemini-2.0-flash")
-          response = model.generate_content(prompt)
-          st.session_state.jemi_advice = response.text
+          st.session_state.jemi_advice = ask_gemini_api(prompt, api_key)
         except Exception as e:
           st.error(f"AI通信エラー: {e}")
 
@@ -455,10 +464,8 @@ elif page == "🤖 ジェミ相談室":
 
       with st.spinner("ジェミが回答を作成中..."):
         try:
-          # 最新かつ互換性のあるモデル指定
-          model = genai.GenerativeModel("gemini-2.0-flash")
-          response = model.generate_content(full_prompt)
+          response_text = ask_gemini_api(full_prompt, api_key)
           st.success("💪 ジェミからの回答:")
-          st.write(response.text)
+          st.write(response_text)
         except Exception as e:
           st.error(f"AI通信エラーが発生しました: {e}")
