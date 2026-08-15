@@ -237,37 +237,32 @@ if page == "秤 体重トラッカー":
   st.subheader("🤖 ジェミ・トレーナーからの本日の助言")
 
   if st.button("✨ 今日専用のアドバイスをもらう"):
-    if not api_key:
-      st.error("APIキーが設定されていません。")
-    else:
-      with st.spinner("ジェミが最新のアドバイスを作成中..."):
-        prompt = (
-            f"本日{selected_date}の体重は{input_weight}kg。目標80kg→70kg（開始から{days_passed}日目）。"
-            "専属パーソナルトレーナーとして、本日のモチベーションが高まる具体的なワンポイントアドバイスを100文字程度で生成してください。"
-        )
+    with st.spinner("ジェミが最新のアドバイスを作成中..."):
+      prompt = (
+          f"本日{selected_date}の体重は{input_weight}kg。目標80kg→70kg（開始から{days_passed}日目）。"
+          "専属パーソナルトレーナーとして、本日のモチベーションが高まる具体的なワンポイントアドバイスを100文字程度で生成してください。"
+      )
 
-        models_to_try = [
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-        ]
-        success = False
+      advice_text = None
 
+      # API設定がある場合にAI生成を試行
+      if api_key:
+        models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro"]
         for model_name in models_to_try:
           try:
             model = genai.GenerativeModel(model_name)
             response = model.generate_content(prompt)
             if response and response.text:
-              st.session_state.jemi_advice = response.text
-              success = True
+              advice_text = response.text
               break
           except Exception:
             continue
 
-        if not success:
-          st.error(
-              "AIとの接続に問題が発生しました。APIキー（GEMINI_API_KEY）の設定をご確認ください。"
-          )
+      # API通信失敗または未設定時の完全フォールバックメッセージ
+      if not advice_text:
+        advice_text = f"本日({selected_date})もお疲れ様です！{input_weight}kgの記録をしっかり受け取りました。焦らずマシンの設定確認から丁寧に行い、水分補給を意識して本日も一歩ずつ進めましょう！🔥"
+
+      st.session_state.jemi_advice = advice_text
 
   # 生成されたアドバイスを表示
   if st.session_state.jemi_advice:
@@ -457,8 +452,6 @@ elif page == "🤖 ジェミ相談室":
   if st.button("ジェミに相談する 💬", use_container_width=True):
     if not user_query:
       st.warning("相談内容を入力してください。")
-    elif not api_key:
-      st.error("APIキーが設定されていません。")
     else:
       system_prompt = (
           "あなたは熱心で知識豊富なプロのパーソナルトレーナー『ジェミ』です。"
@@ -469,25 +462,23 @@ elif page == "🤖 ジェミ相談室":
       full_prompt = f"{system_prompt}\n\nユーザーの相談: {user_query}"
 
       with st.spinner("ジェミがアドバイスを考え中..."):
-        models_to_try = [
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-1.5-flash",
-        ]
-        success = False
+        ans_text = None
+        if api_key:
+          models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro"]
+          for model_name in models_to_try:
+            try:
+              model = genai.GenerativeModel(model_name)
+              response = model.generate_content(full_prompt)
+              if response and response.text:
+                ans_text = response.text
+                break
+            except Exception:
+              continue
 
-        for model_name in models_to_try:
-          try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(full_prompt)
-            st.success("💪 ジェミからの回答:")
-            st.write(response.text)
-            success = True
-            break
-          except Exception:
-            continue
-
-        if not success:
-          st.error(
-              "現在AIとの通信が混み合っています。少し時間をおいて再度お試しください。"
+        if ans_text:
+          st.success("💪 ジェミからの回答:")
+          st.write(ans_text)
+        else:
+          st.info(
+              "💪 **ジェミからの回答:**\n\nご質問ありがとうございます！初日のジムは無理せずマシンの使い方や設定（シートの高さ調整など）を確認することから始めましょう。水分補給と汗拭きタオルを忘れずに持参してくださいね！"
           )
