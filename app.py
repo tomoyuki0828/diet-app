@@ -245,7 +245,8 @@ if page == "秤 体重トラッカー":
             "専属パーソナルトレーナーとして、本日のモチベーションが高まる具体的なワンポイントアドバイスを100文字程度で生成してください。"
         )
         try:
-          model = genai.GenerativeModel("gemini-1.5-flash")
+          # 最新かつ互換性のあるモデル指定
+          model = genai.GenerativeModel("gemini-2.0-flash")
           response = model.generate_content(prompt)
           st.session_state.jemi_advice = response.text
         except Exception as e:
@@ -454,7 +455,8 @@ elif page == "🤖 ジェミ相談室":
 
       with st.spinner("ジェミが回答を作成中..."):
         try:
-          model = genai.GenerativeModel("gemini-1.5-flash")
+          # 最新かつ互換性のあるモデル指定
+          model = genai.GenerativeModel("gemini-2.0-flash")
           response = model.generate_content(full_prompt)
           st.success("💪 ジェミからの回答:")
           st.write(response.text)
