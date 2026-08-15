@@ -57,7 +57,6 @@ if "weight_records" not in st.session_state:
 if "show_reloaded_msg" not in st.session_state:
   st.session_state.show_reloaded_msg = False
 
-# 本日の助言保持用セッション
 if "jemi_advice" not in st.session_state:
   st.session_state.jemi_advice = None
 
@@ -70,7 +69,6 @@ df_records = (
     .reset_index(drop=True)
 )
 
-# 再読み込み完了メッセージの表示
 if st.session_state.show_reloaded_msg:
   st.success("✅ アプリの再読み込みが完了しました！")
   st.session_state.show_reloaded_msg = False
@@ -142,7 +140,6 @@ if page == "秤 体重トラッカー":
 
   st.markdown("---")
 
-  # 📈 体重推移グラフ & 7日間平均
   st.subheader("📈 体重推移 ＆ 7日間平均チェック")
 
   if not df_records.empty:
@@ -237,34 +234,24 @@ if page == "秤 体重トラッカー":
   st.subheader("🤖 ジェミ・トレーナーからの本日の助言")
 
   if st.button("✨ 今日専用のアドバイスをもらう"):
-    with st.spinner("ジェミが最新のアドバイスを作成中..."):
-      prompt = (
-          f"本日{selected_date}の体重は{input_weight}kg。目標80kg→70kg（開始から{days_passed}日目）。"
-          "専属パーソナルトレーナーとして、本日のモチベーションが高まる具体的なワンポイントアドバイスを100文字程度で生成してください。"
+    if not api_key:
+      st.error(
+          "⚠️ Streamlit Secrets に GEMINI_API_KEY"
+          " が設定されていません。設定をご確認ください。"
       )
+    else:
+      with st.spinner("ジェミが最新のアドバイスを作成中..."):
+        prompt = (
+            f"本日{selected_date}の体重は{input_weight}kg。目標80kg→70kg（開始から{days_passed}日目）。"
+            "専属パーソナルトレーナーとして、本日のモチベーションが高まる具体的なワンポイントアドバイスを100文字程度で生成してください。"
+        )
+        try:
+          model = genai.GenerativeModel("gemini-1.5-flash")
+          response = model.generate_content(prompt)
+          st.session_state.jemi_advice = response.text
+        except Exception as e:
+          st.error(f"AI通信エラー: {e}")
 
-      advice_text = None
-
-      # API設定がある場合にAI生成を試行
-      if api_key:
-        models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro"]
-        for model_name in models_to_try:
-          try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt)
-            if response and response.text:
-              advice_text = response.text
-              break
-          except Exception:
-            continue
-
-      # API通信失敗または未設定時の完全フォールバックメッセージ
-      if not advice_text:
-        advice_text = f"本日({selected_date})もお疲れ様です！{input_weight}kgの記録をしっかり受け取りました。焦らずマシンの設定確認から丁寧に行い、水分補給を意識して本日も一歩ずつ進めましょう！🔥"
-
-      st.session_state.jemi_advice = advice_text
-
-  # 生成されたアドバイスを表示
   if st.session_state.jemi_advice:
     st.success(f"💡 **ジェミの一言:**\n\n{st.session_state.jemi_advice}")
 
@@ -446,39 +433,31 @@ elif page == "🤖 ジェミ相談室":
 
   user_query = st.text_area(
       "質問・相談を入力",
-      placeholder="例：初日に持っていくと良いものや準備しておくべきことは？",
+      placeholder="例：土日はオフだけど、ジムに行く場合どうしたらいい？",
   )
 
   if st.button("ジェミに相談する 💬", use_container_width=True):
     if not user_query:
       st.warning("相談内容を入力してください。")
+    elif not api_key:
+      st.error(
+          "⚠️ Streamlit Secrets に GEMINI_API_KEY"
+          " が設定されていません。設定をご確認ください。"
+      )
     else:
       system_prompt = (
           "あなたは熱心で知識豊富なプロのパーソナルトレーナー『ジェミ』です。"
           "ユーザーは80kgから70kgを目指してダイエット中です。"
           "ユーザーのお使いのジムでは『ダンベル・バーベル』『ケーブルマシン』『自重トレ』は使わず、『筋トレマシン限定』でトレーニングを行います。"
-          "7日間平均の考え方を取り入れた指導を行ってください。"
+          "ユーザーの質問に直接的かつ親身に答えてください。"
       )
       full_prompt = f"{system_prompt}\n\nユーザーの相談: {user_query}"
 
-      with st.spinner("ジェミがアドバイスを考え中..."):
-        ans_text = None
-        if api_key:
-          models_to_try = ["gemini-1.5-flash", "gemini-1.5-pro"]
-          for model_name in models_to_try:
-            try:
-              model = genai.GenerativeModel(model_name)
-              response = model.generate_content(full_prompt)
-              if response and response.text:
-                ans_text = response.text
-                break
-            except Exception:
-              continue
-
-        if ans_text:
+      with st.spinner("ジェミが回答を作成中..."):
+        try:
+          model = genai.GenerativeModel("gemini-1.5-flash")
+          response = model.generate_content(full_prompt)
           st.success("💪 ジェミからの回答:")
-          st.write(ans_text)
-        else:
-          st.info(
-              "💪 **ジェミからの回答:**\n\nご質問ありがとうございます！初日のジムは無理せずマシンの使い方や設定（シートの高さ調整など）を確認することから始めましょう。水分補給と汗拭きタオルを忘れずに持参してくださいね！"
-          )
+          st.write(response.text)
+        except Exception as e:
+          st.error(f"AI通信エラーが発生しました: {e}")
