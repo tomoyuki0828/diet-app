@@ -16,6 +16,30 @@ api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
 if api_key:
   genai.configure(api_key=api_key)
 
+
+# --- 利用可能なGeminiモデルを自動取得する関数 ---
+def get_working_gemini_model():
+  try:
+    for m in genai.list_models():
+      if "generateContent" in m.supported_generation_methods:
+        # 先頭の 'models/' を除去してモデル名を取得
+        model_name = (
+            m.name.replace("models/", "") if "models/" in m.name else m.name
+        )
+        if "flash" in model_name:
+          return genai.GenerativeModel(model_name)
+    # Flash系が見つからない場合のフォールバック
+    for m in genai.list_models():
+      if "generateContent" in m.supported_generation_methods:
+        model_name = (
+            m.name.replace("models/", "") if "models/" in m.name else m.name
+        )
+        return genai.GenerativeModel(model_name)
+  except Exception:
+    pass
+  return genai.GenerativeModel("gemini-1.5-flash")
+
+
 # --- 今日の日付（日本時間 JST に正確に設定） ---
 jst = zoneinfo.ZoneInfo("Asia/Tokyo")
 today_date = datetime.datetime.now(jst).date()
@@ -246,7 +270,7 @@ if page == "秤 体重トラッカー":
             "専属パーソナルトレーナーとして、本日のモチベーションが高まる具体的なワンポイントアドバイスを100文字程度で生成してください。"
         )
         try:
-          model = genai.GenerativeModel("gemini-2.0-flash")
+          model = get_working_gemini_model()
           response = model.generate_content(prompt)
           st.session_state.jemi_advice = response.text
         except Exception as e:
@@ -455,7 +479,7 @@ elif page == "🤖 ジェミ相談室":
 
       with st.spinner("ジェミが回答を作成中..."):
         try:
-          model = genai.GenerativeModel("gemini-2.0-flash")
+          model = get_working_gemini_model()
           response = model.generate_content(full_prompt)
           st.success("💪 ジェミからの回答:")
           st.write(response.text)
