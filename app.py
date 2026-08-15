@@ -2,7 +2,7 @@ import calendar
 import datetime
 import os
 import zoneinfo
-import google.generativeai as genai
+from google import genai
 import pandas as pd
 import streamlit as st
 
@@ -11,28 +11,9 @@ st.set_page_config(
     page_title="健康ダイエット App", page_icon="🏋️‍♂️", layout="centered"
 )
 
-# --- APIキーの設定 ---
+# --- APIキー＆クライアント設定 ---
 api_key = st.secrets.get("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY")
-if api_key:
-  genai.configure(api_key=api_key)
-
-
-# --- 利用可能なGeminiモデルを自動取得する関数 ---
-def get_working_model():
-  try:
-    for m in genai.list_models():
-      if "generateContent" in m.supported_generation_methods:
-        # 推奨モデル（gemini-1.5やgemini-2.0など）が見つかればそれを返す
-        if "gemini-1.5-flash" in m.name or "gemini-2.0-flash" in m.name:
-          return genai.GenerativeModel(m.name)
-    # 特定モデルが見つからなければ利用可能な最初のモデルを使用
-    for m in genai.list_models():
-      if "generateContent" in m.supported_generation_methods:
-        return genai.GenerativeModel(m.name)
-  except Exception:
-    pass
-  return genai.GenerativeModel("gemini-1.5-flash-latest")
-
+client = genai.Client(api_key=api_key) if api_key else None
 
 # --- 今日の日付（日本時間 JST に正確に設定） ---
 jst = zoneinfo.ZoneInfo("Asia/Tokyo")
@@ -46,7 +27,6 @@ SPREADSHEET_URL = st.secrets.get(
 )
 
 
-# スプレッドシートからのデータ自動読み込み関数
 def load_data_from_sheet():
   try:
     if "/edit" in SPREADSHEET_URL:
@@ -252,10 +232,9 @@ if page == "秤 体重トラッカー":
   st.subheader("🤖 ジェミ・トレーナーからの本日の助言")
 
   if st.button("✨ 今日専用のアドバイスをもらう"):
-    if not api_key:
+    if not client:
       st.error(
-          "⚠️ Streamlit Secrets に GEMINI_API_KEY"
-          " が設定されていません。設定をご確認ください。"
+          "⚠️ GEMINI_API_KEY が設定されていません。設定をご確認ください。"
       )
     else:
       with st.spinner("ジェミが最新のアドバイスを作成中..."):
@@ -264,8 +243,9 @@ if page == "秤 体重トラッカー":
             "専属パーソナルトレーナーとして、本日のモチベーションが高まる具体的なワンポイントアドバイスを100文字程度で生成してください。"
         )
         try:
-          model = get_working_model()
-          response = model.generate_content(prompt)
+          response = client.models.generate_content(
+              model="gemini-1.5-flash", contents=prompt
+          )
           st.session_state.jemi_advice = response.text
         except Exception as e:
           st.error(f"AI通信エラー: {e}")
@@ -457,10 +437,9 @@ elif page == "🤖 ジェミ相談室":
   if st.button("ジェミに相談する 💬", use_container_width=True):
     if not user_query:
       st.warning("相談内容を入力してください。")
-    elif not api_key:
+    elif not client:
       st.error(
-          "⚠️ Streamlit Secrets に GEMINI_API_KEY"
-          " が設定されていません。設定をご確認ください。"
+          "⚠️ GEMINI_API_KEY が設定されていません。設定をご確認ください。"
       )
     else:
       system_prompt = (
@@ -473,8 +452,9 @@ elif page == "🤖 ジェミ相談室":
 
       with st.spinner("ジェミが回答を作成中..."):
         try:
-          model = get_working_model()
-          response = model.generate_content(full_prompt)
+          response = client.models.generate_content(
+              model="gemini-1.5-flash", contents=full_prompt
+          )
           st.success("💪 ジェミからの回答:")
           st.write(response.text)
         except Exception as e:
