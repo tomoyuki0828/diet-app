@@ -31,7 +31,6 @@ SPREADSHEET_URL = st.secrets.get(
 # スプレッドシートからのデータ自動読み込み関数
 def load_data_from_sheet():
   try:
-    # スプレッドシートをCSV形式で取得するURLに変換
     if "/edit" in SPREADSHEET_URL:
       csv_url = SPREADSHEET_URL.split("/edit")[0] + "/export?format=csv"
     else:
@@ -41,8 +40,7 @@ def load_data_from_sheet():
     df["日付"] = pd.to_datetime(df["日付"]).dt.date
     df["体重"] = df["体重"].astype(float)
     return dict(zip(df["日付"], df["体重"]))
-  except Exception as e:
-    # 読み込み失敗時のフォールバック用データ
+  except Exception:
     return {
         yesterday_date: 78.2,
         today_date: 77.9,
@@ -53,15 +51,16 @@ def load_data_from_sheet():
 if "start_date" not in st.session_state:
   st.session_state.start_date = yesterday_date
 
-# 常に最新のスプレッドシートデータを取得して初期化
 if "weight_records" not in st.session_state:
   st.session_state.weight_records = load_data_from_sheet()
 
-# 再読み込みメッセージ表示用フラグ
 if "show_reloaded_msg" not in st.session_state:
   st.session_state.show_reloaded_msg = False
 
-# データフレームの作成
+# 本日の助言保持用セッション
+if "jemi_advice" not in st.session_state:
+  st.session_state.jemi_advice = None
+
 df_records = (
     pd.DataFrame([
         {"日付": k, "体重": v}
@@ -71,15 +70,13 @@ df_records = (
     .reset_index(drop=True)
 )
 
-# ==========================================
-# 再読み込み完了メッセージの表示チェック
-# ==========================================
+# 再読み込み完了メッセージの表示
 if st.session_state.show_reloaded_msg:
   st.success("✅ アプリの再読み込みが完了しました！")
   st.session_state.show_reloaded_msg = False
 
 # ==========================================
-# サイドバー（固定ナビゲーション）
+# サイドバー
 # ==========================================
 with st.sidebar:
   st.title("🏋️‍♂️ メニュー")
@@ -89,7 +86,6 @@ with st.sidebar:
   )
 
   st.markdown("---")
-  # 🔄 アプリ更新ボタン（完了メッセージ付き＆データ再読み込み）
   if st.button("🔄 アプリを更新（再読み込み）", use_container_width=True):
     st.session_state.weight_records = load_data_from_sheet()
     st.session_state.show_reloaded_msg = True
@@ -98,7 +94,6 @@ with st.sidebar:
   st.markdown("---")
   st.caption("目標: 80kg → 70kg\n完全パーソナル管理")
 
-# 経過日数の計算
 days_passed = (today_date - st.session_state.start_date).days + 1
 
 # ==========================================
@@ -119,7 +114,6 @@ if page == "秤 体重トラッカー":
 
   st.header("☀️ 体重の記録")
 
-  # 開始日の変更設定
   with st.expander("⚙️ トレーニング開始日の設定"):
     input_start = st.date_input("開始日", value=st.session_state.start_date)
     if input_start != st.session_state.start_date:
@@ -128,10 +122,8 @@ if page == "秤 体重トラッカー":
 
   st.success(f"⏱️ **トレーニング開始から:** `{days_passed} 日目` 🔥")
 
-  # 日付選択の追加（過去の日付の選択・修正が可能）
   selected_date = st.date_input("記録する日付", value=today_date)
 
-  # 最新の記録を取得
   latest_val = (
       float(df_records["体重"].iloc[-1]) if not df_records.empty else 77.9
   )
@@ -144,16 +136,13 @@ if page == "秤 体重トラッカー":
   )
 
   if st.button("保存して7日間平均を分析 🚀", use_container_width=True):
-    # 選択された日付の記録を更新・追加
     st.session_state.weight_records[selected_date] = input_weight
     st.success(f"{selected_date} の体重 {input_weight} kg を保存しました！")
     st.rerun()
 
   st.markdown("---")
 
-  # ==========================================
-  # 📈 体重推移グラフ & 月別表示 ＆ 7日間平均判定ロジック
-  # ==========================================
+  # 📈 体重推移グラフ & 7日間平均
   st.subheader("📈 体重推移 ＆ 7日間平均チェック")
 
   if not df_records.empty:
@@ -161,7 +150,6 @@ if page == "秤 体重トラッカー":
     df_records["年月"] = df_records["日付_dt"].dt.strftime("%Y-%m")
 
     available_months = sorted(df_records["年月"].unique(), reverse=True)
-
     current_month_str = datetime.datetime.now(jst).strftime("%Y-%m")
     default_index = (
         available_months.index(current_month_str)
@@ -187,7 +175,6 @@ if page == "秤 体重トラッカー":
 
     if not filtered_df.empty:
       filtered_df["日付文字列"] = filtered_df["日付"].astype(str)
-
       if len(filtered_df) == 1:
         st.scatter_chart(filtered_df, x="日付文字列", y="体重", color="#FF4B4B")
       else:
@@ -253,34 +240,41 @@ if page == "秤 体重トラッカー":
     if not api_key:
       st.error("APIキーが設定されていません。")
     else:
-      prompt = (
-          f"本日{input_weight}kg。目標80kg→70kg。本日がジム初回です。専属トレーナーとしてやる気が湧くワンポイント助言を100文字程度で提供してください。"
-      )
-
-      models_to_try = [
-          "gemini-1.5-flash",
-          "gemini-1.5-pro",
-      ]
-      success = False
-
-      for model_name in models_to_try:
-        try:
-          model = genai.GenerativeModel(model_name)
-          response = model.generate_content(prompt)
-          st.success(f"💡 **ジェミの一言:**\n\n{response.text}")
-          success = True
-          break
-        except Exception:
-          continue
-
-      if not success:
-        st.success(
-            "💡"
-            " **ジェミの一言:**\n\nいよいよ初日ですね！焦らずマシンの設定確認からスタートしましょう。水分補給をしっかり行って頑張ってください！🔥"
+      with st.spinner("ジェミが最新のアドバイスを作成中..."):
+        prompt = (
+            f"本日{selected_date}の体重は{input_weight}kg。目標80kg→70kg（開始から{days_passed}日目）。"
+            "専属パーソナルトレーナーとして、本日のモチベーションが高まる具体的なワンポイントアドバイスを100文字程度で生成してください。"
         )
 
+        models_to_try = [
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+        ]
+        success = False
+
+        for model_name in models_to_try:
+          try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            if response and response.text:
+              st.session_state.jemi_advice = response.text
+              success = True
+              break
+          except Exception:
+            continue
+
+        if not success:
+          st.error(
+              "AIとの接続に問題が発生しました。APIキー（GEMINI_API_KEY）の設定をご確認ください。"
+          )
+
+  # 生成されたアドバイスを表示
+  if st.session_state.jemi_advice:
+    st.success(f"💡 **ジェミの一言:**\n\n{st.session_state.jemi_advice}")
+
 # ==========================================
-# ページ 2: 今日のパーソナルメニュー（完全マシン限定）
+# ページ 2: 今日のパーソナルメニュー
 # ==========================================
 elif page == "💪 今日のメニュー":
   st.title("💪 今日のメニュー")
@@ -476,8 +470,9 @@ elif page == "🤖 ジェミ相談室":
 
       with st.spinner("ジェミがアドバイスを考え中..."):
         models_to_try = [
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
             "gemini-1.5-flash",
-            "gemini-1.5-pro",
         ]
         success = False
 
